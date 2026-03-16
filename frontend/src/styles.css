@@ -1,0 +1,66 @@
+@import url("https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Sora:wght@400;600;700;800&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    @apply box-border;
+  }
+
+  body {
+    @apply m-0 min-h-screen bg-navy-950 text-slatepro-200 antialiased;
+    font-feature-settings: "cv01" on, "cv03" on, "ss01" on;
+  }
+
+  #root {
+    @apply min-h-screen;
+  }
+}
+
+@layer components {
+  .bg-noise {
+    background-image:
+      radial-gradient(circle at 20% 10%, rgba(66, 165, 255, 0.16), transparent 40%),
+      radial-gradient(circle at 80% 0%, rgba(31, 95, 186, 0.3), transparent 45%),
+      radial-gradient(circle at 50% 110%, rgba(103, 78, 255, 0.12), transparent 40%),
+      linear-gradient(160deg, #050b18 0%, #091327 55%, #050b18 100%);
+  }
+
+  .glass-card {
+    @apply rounded-3xl border border-slatepro-400/20 bg-slate-900/40 shadow-card backdrop-blur-xl;
+  }
+
+  .chip {
+    @apply inline-flex items-center gap-2 rounded-full border border-slatepro-400/25 bg-white/5 px-3 py-1 text-xs font-semibold tracking-wide text-slatepro-200;
+  }
+
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl bg-accent-500 px-4 py-3 text-sm font-semibold text-white transition-all duration-200 hover:bg-accent-400 hover:shadow-glow disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl border border-slatepro-400/35 bg-white/5 px-4 py-3 text-sm font-semibold text-slatepro-200 transition-all duration-200 hover:border-accent-400/60 hover:bg-accent-500/10;
+  }
+
+  .input-glow {
+    @apply w-full rounded-2xl border border-slatepro-400/30 bg-navy-900/70 px-4 py-3 text-sm text-white outline-none transition duration-200 placeholder:text-slatepro-400 focus:border-accent-400 focus:ring-4 focus:ring-accent-500/20;
+  }
+}
+
+@keyframes float {
+  0% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-12px) rotate(2deg);
+  }
+  100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+}
+
+.shape-float {
+  animation: float 8s ease-in-out infinite;
+}
