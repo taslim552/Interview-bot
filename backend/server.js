@@ -271,6 +271,13 @@ app.get("/health", (_req, res) => {
   res.json({ status: "ok", api: "interview-bot-backend" });
 });
 
+app.get("/", (_req, res) => {
+  res.json({
+    message: "Interview bot backend is running.",
+    health: "/health"
+  });
+});
+
 app.post("/upload_resume", upload.single("file"), async (req, res) => {
   try {
     if (!req.file) {
