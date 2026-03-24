@@ -497,6 +497,11 @@ function App() {
         throw new Error("No interview questions were generated.");
       }
 
+      if (data.questionSource && data.questionSource !== "gemini") {
+        const reason = data.questionSourceReason ? ` (${data.questionSourceReason})` : "";
+        setError(`Using fallback interview questions${reason}.`);
+      }
+
       setUploadProgress(100);
       setQuestions(loadedQuestions);
       setCurrentIndex(0);

@@ -119,6 +119,56 @@ function extractKeywords(text) {
 }
 
 async function generateQuestionsFromGemini(keywords) {
+  const parseQuestions = (rawText) => {
+    const text = String(rawText || "");
+
+    const lineBased = text
+      .split("\n")
+      .map((line) => line.replace(/^\s*[-*\d.)\s]+/, "").trim())
+      .filter(Boolean)
+      .filter((line) => line.length >= 12)
+      .slice(0, 10);
+
+    if (lineBased.length >= 6) {
+      return lineBased;
+    }
+
+    const numberedMatches = [];
+    const numberedRegex = /(?:^|\n)\s*\d+[.)]\s*(.+)/g;
+    let match = numberedRegex.exec(text);
+    while (match) {
+      const question = String(match[1] || "").trim();
+      if (question.length >= 12) {
+        numberedMatches.push(question);
+      }
+      match = numberedRegex.exec(text);
+    }
+
+    if (numberedMatches.length >= 6) {
+      return numberedMatches.slice(0, 10);
+    }
+
+    const jsonArrayMatch = text.match(/\[[\s\S]*\]/);
+    if (jsonArrayMatch) {
+      try {
+        const parsed = JSON.parse(jsonArrayMatch[0]);
+        if (Array.isArray(parsed)) {
+          const jsonQuestions = parsed
+            .map((item) => String(item || "").trim())
+            .filter((item) => item.length >= 12)
+            .slice(0, 10);
+          if (jsonQuestions.length >= 6) {
+            return jsonQuestions;
+          }
+        }
+      } catch (_error) {
+        // Ignore JSON parse failure and continue to fallback.
+      }
+    }
+
+    return [];
+  };
+
   if (!geminiModel) {
     return {
       questions: fallbackQuestions(),
@@ -137,25 +187,29 @@ async function generateQuestionsFromGemini(keywords) {
   try {
     const result = await geminiModel.generateContent(prompt);
     const text = result.response.text() || "";
-    const lineParsed = text
-      .split("\n")
-      .map((line) => line.replace(/^\s*[-*\d.)\s]+/, "").trim())
-      .filter(Boolean)
-      .slice(0, 10);
-
-    const questionParsed = lineParsed.filter((line) => line.includes("?"));
-
-    const sentenceParsed = text
-      .split(/(?<=\?)\s+/)
-      .map((line) => line.replace(/^\s*[-*\d.)\s]+/, "").trim())
-      .filter((line) => line && line.includes("?"))
-      .slice(0, 10);
-
-    const parsed = (questionParsed.length >= 6 ? questionParsed : sentenceParsed).slice(0, 10);
+    const parsed = parseQuestions(text);
 
     if (parsed.length >= 6) {
       return {
         questions: parsed,
+        source: "gemini"
+      };
+    }
+
+    // Retry once with strict JSON output format when free-form response is hard to parse.
+    const retryPrompt = [
+      "Generate exactly 10 interview questions for this candidate.",
+      "Return ONLY a valid JSON array of 10 strings.",
+      "No markdown, no explanation, no extra text.",
+      `Resume keywords: ${keywords.join(", ")}`
+    ].join("\n");
+
+    const retryResult = await geminiModel.generateContent(retryPrompt);
+    const retryText = retryResult.response.text() || "";
+    const retryParsed = parseQuestions(retryText);
+    if (retryParsed.length >= 6) {
+      return {
+        questions: retryParsed,
         source: "gemini"
       };
     }
