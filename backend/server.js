@@ -120,32 +120,58 @@ function extractKeywords(text) {
 
 async function generateQuestionsFromGemini(keywords) {
   if (!geminiModel) {
-    return fallbackQuestions();
+    return {
+      questions: fallbackQuestions(),
+      source: "fallback",
+      reason: "gemini-model-unavailable"
+    };
   }
 
   const prompt = [
-    "Generate exactly 10 interview questions as a plain numbered list.",
-    "No intro text, no headings.",
+    "Generate exactly 10 interview questions.",
+    "Return only one question per line.",
+    "No intro text, no headings, no explanations.",
     `Focus on these resume keywords: ${keywords.join(", ")}`
   ].join("\n");
 
   try {
     const result = await geminiModel.generateContent(prompt);
     const text = result.response.text() || "";
-    const parsed = text
+    const lineParsed = text
       .split("\n")
       .map((line) => line.replace(/^\s*[-*\d.)\s]+/, "").trim())
       .filter(Boolean)
       .slice(0, 10);
 
+    const questionParsed = lineParsed.filter((line) => line.includes("?"));
+
+    const sentenceParsed = text
+      .split(/(?<=\?)\s+/)
+      .map((line) => line.replace(/^\s*[-*\d.)\s]+/, "").trim())
+      .filter((line) => line && line.includes("?"))
+      .slice(0, 10);
+
+    const parsed = (questionParsed.length >= 6 ? questionParsed : sentenceParsed).slice(0, 10);
+
     if (parsed.length >= 6) {
-      return parsed;
+      return {
+        questions: parsed,
+        source: "gemini"
+      };
     }
 
-    return fallbackQuestions();
+    return {
+      questions: fallbackQuestions(),
+      source: "fallback",
+      reason: "gemini-response-parse-insufficient"
+    };
   } catch (error) {
     console.error("Gemini question generation failed:", error.message);
-    return fallbackQuestions();
+    return {
+      questions: fallbackQuestions(),
+      source: "fallback",
+      reason: "gemini-request-failed"
+    };
   }
 }
 
@@ -325,9 +351,14 @@ app.post("/upload_resume", upload.single("file"), async (req, res) => {
     const parsedPdf = await pdfParse(req.file.buffer);
     const resumeText = parsedPdf.text || "";
     const keywords = extractKeywords(resumeText);
-    const questions = await generateQuestionsFromGemini(keywords);
+    const generated = await generateQuestionsFromGemini(keywords);
 
-    return res.json({ keywords, questions });
+    return res.json({
+      keywords,
+      questions: generated.questions,
+      questionSource: generated.source,
+      questionSourceReason: generated.reason || null
+    });
   } catch (error) {
     console.error("upload_resume error:", error.message);
     return res.status(500).json({ error: "Failed to process resume." });
