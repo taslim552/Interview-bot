@@ -62,6 +62,15 @@ Frontend URL: `http://localhost:5173`
 - `POST /final_feedback`
 - `GET /health`
 
+## Deploy
+
+Production deployment files are included:
+
+- `render.yaml` for backend deployment on Render
+- `frontend/vercel.json` for frontend deployment on Vercel
+
+For complete step-by-step setup, see `DEPLOYMENT.md`.
+
 ## Notes
 
 - If `GEMINI_API_KEY` is missing, backend uses fallback question/feedback behavior.

@@ -1,3 +1,4 @@
+// frontend/src/App.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useDropzone } from "react-dropzone";
@@ -325,25 +326,28 @@ function FeedbackView({ feedback, evaluations, qaPairs, onRestart }) {
   const analytics = useMemo(() => {
     if (!evaluations.length) {
       return [
-        { name: "Technical Depth", value: 62 },
-        { name: "Communication", value: 68 },
-        { name: "Confidence", value: 65 },
-        { name: "Problem Solving", value: 64 }
+        { name: "Technical Depth", value: 0 },
+        { name: "Communication", value: 0 },
+        { name: "Confidence", value: 0 },
+        { name: "Problem Solving", value: 0 }
       ];
     }
 
-    const avgScore = evaluations.reduce((acc, item) => acc + (item.score ?? 0), 0) / evaluations.length;
-    const avgPos = evaluations.reduce((acc, item) => acc + (item.sentiment?.pos ?? 0), 0) / evaluations.length;
-    const avgNeu = evaluations.reduce((acc, item) => acc + (item.sentiment?.neu ?? 0), 0) / evaluations.length;
-    const avgLen = qaPairs.reduce((acc, item) => acc + (item.answer?.length ?? 0), 0) / Math.max(1, qaPairs.length);
+    const avgTechnicalDepth =
+      evaluations.reduce((acc, item) => acc + (item.metrics?.technicalDepth ?? 0), 0) / evaluations.length;
+    const avgCommunication =
+      evaluations.reduce((acc, item) => acc + (item.metrics?.communication ?? 0), 0) / evaluations.length;
+    const avgConfidence = evaluations.reduce((acc, item) => acc + (item.metrics?.confidence ?? 0), 0) / evaluations.length;
+    const avgProblemSolving =
+      evaluations.reduce((acc, item) => acc + (item.metrics?.problemSolving ?? 0), 0) / evaluations.length;
 
     return [
-      { name: "Technical Depth", value: clamp(Math.round(avgScore * 100), 10, 98) },
-      { name: "Communication", value: clamp(Math.round((avgPos + avgNeu * 0.5) * 100), 20, 98) },
-      { name: "Confidence", value: clamp(Math.round(avgLen / 4), 20, 98) },
-      { name: "Problem Solving", value: clamp(Math.round(avgScore * 80 + avgPos * 40), 20, 98) }
+      { name: "Technical Depth", value: clamp(Math.round(avgTechnicalDepth), 0, 98) },
+      { name: "Communication", value: clamp(Math.round(avgCommunication), 0, 98) },
+      { name: "Confidence", value: clamp(Math.round(avgConfidence), 0, 98) },
+      { name: "Problem Solving", value: clamp(Math.round(avgProblemSolving), 0, 98) }
     ];
-  }, [evaluations, qaPairs]);
+  }, [evaluations]);
 
   const overall = Math.round(analytics.reduce((acc, item) => acc + item.value, 0) / analytics.length);
   const feedbackLines = useMemo(
@@ -364,8 +368,9 @@ function FeedbackView({ feedback, evaluations, qaPairs, onRestart }) {
             <CircleCheck size={14} />
             Interview Complete
           </p>
-          <h2 className="mt-3 font-sans text-2xl font-bold text-white md:text-3xl">Performance Report</h2>
+            <h2 className="mt-3 font-sans text-2xl font-bold text-white md:text-3xl">Performance Report</h2>
           <p className="mt-2 text-sm text-slatepro-300">Review your interview analytics and targeted coaching feedback.</p>
+            <p className="mt-1 text-xs text-slatepro-400">All scores are calculated from your submitted answers in this session.</p>
         </div>
         <div className="rounded-2xl border border-accent-400/35 bg-accent-500/10 px-6 py-4 text-center">
           <p className="text-xs uppercase tracking-wide text-slatepro-300">Overall Score</p>
@@ -520,7 +525,19 @@ function App() {
       });
 
       const updatedPairs = [...qaPairs, { question: currentQuestion, answer }];
-      const updatedEvaluations = [...evaluations, { sentiment: response.sentiment, score: response.score }];
+      const updatedEvaluations = [
+        ...evaluations,
+        {
+          sentiment: response.sentiment,
+          score: response.score,
+          metrics: response.metrics || {
+            technicalDepth: 0,
+            communication: 0,
+            confidence: 0,
+            problemSolving: 0
+          }
+        }
+      ];
 
       setQaPairs(updatedPairs);
       setEvaluations(updatedEvaluations);

@@ -1,3 +1,4 @@
+// backend/server.js
 const express = require("express");
 const cors = require("cors");
 const multer = require("multer");
@@ -170,6 +171,77 @@ function relevanceScore(question, answer) {
   return dot / (Math.sqrt(qNorm) * Math.sqrt(aNorm));
 }
 
+function clampScore(value, min = 0, max = 100) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function computeAnswerMetrics(question, answer, sentiment, relevance) {
+  const answerText = (answer || "").toLowerCase();
+  const questionText = (question || "").toLowerCase();
+
+  const answerWords = answerText.match(/[a-z0-9+#.-]+/g) || [];
+  const questionWords = questionText.match(/[a-z0-9+#.-]+/g) || [];
+  const sentenceCount = Math.max(1, (answer || "").split(/[.!?]+/).filter((part) => part.trim()).length);
+
+  const stopWords = new Set(natural.stopwords);
+  const questionTerms = new Set(questionWords.filter((word) => word.length > 2 && !stopWords.has(word)));
+  const answerTerms = new Set(answerWords.filter((word) => word.length > 2 && !stopWords.has(word)));
+
+  const overlapCount = [...questionTerms].filter((term) => answerTerms.has(term)).length;
+  const overlapRatio = questionTerms.size ? overlapCount / questionTerms.size : 0;
+
+  const technicalTermPattern = /(api|architecture|database|sql|nosql|cache|redis|docker|kubernetes|microservice|java|python|node|react|aws|azure|gcp|thread|async|queue|latency|throughput|scalable|optimization|security|testing|ci|cd)/g;
+  const actionVerbPattern = /(built|designed|implemented|optimized|debugged|solved|reduced|improved|deployed|integrated|led|refactored|measured|automated)/g;
+  const resultPattern = /(improved|reduced|increased|decreased|faster|slower|latency|uptime|downtime|error rate|throughput|performance|cost)/g;
+  const uncertaintyPattern = /(maybe|probably|i think|not sure|perhaps|kind of|sort of)/g;
+  const fillerPattern = /\b(um|uh|hmm|like)\b/g;
+
+  const technicalMatches = answerText.match(technicalTermPattern) || [];
+  const actionMatches = answerText.match(actionVerbPattern) || [];
+  const resultMatches = answerText.match(resultPattern) || [];
+  const uncertaintyMatches = answerText.match(uncertaintyPattern) || [];
+  const fillerMatches = answerText.match(fillerPattern) || [];
+  const numericEvidenceCount = (answerText.match(/\b\d+(?:\.\d+)?%?\b/g) || []).length;
+
+  const wordCount = answerWords.length;
+  const lengthScore = Math.min(1, wordCount / 80);
+  const structureScore = Math.min(1, sentenceCount / 4);
+  const technicalSignal = Math.min(1, (technicalMatches.length + numericEvidenceCount) / 7);
+  const actionSignal = Math.min(1, actionMatches.length / 4);
+  const resultSignal = Math.min(1, (resultMatches.length + numericEvidenceCount) / 5);
+
+  const hesitationRatio = (uncertaintyMatches.length + fillerMatches.length) / Math.max(1, wordCount / 6);
+  const confidencePenalty = Math.min(0.45, hesitationRatio * 0.25);
+
+  const technicalDepth = clampScore(Math.round((relevance * 0.6 + overlapRatio * 0.2 + technicalSignal * 0.2) * 100), 10, 98);
+  const communication = clampScore(
+    Math.round(
+      (0.4 * lengthScore + 0.3 * structureScore + 0.3 * Math.max(0, (sentiment.pos || 0) + (sentiment.neu || 0) * 0.7)) *
+        (1 - confidencePenalty) *
+        100
+    ),
+    20,
+    98
+  );
+  const confidence = clampScore(
+    Math.round((0.35 * actionSignal + 0.35 * resultSignal + 0.3 * Math.max(0, relevance)) * (1 - confidencePenalty) * 100),
+    15,
+    98
+  );
+  const problemSolving = clampScore(
+    Math.round((0.5 * relevance + 0.2 * overlapRatio + 0.15 * actionSignal + 0.15 * resultSignal) * 100),
+    10,
+    98
+  );
+
+  return {
+    technicalDepth,
+    communication,
+    confidence,
+    problemSolving
+  };
+}
+
 async function generateFinalFeedback(qaPairs) {
   if (!geminiModel) {
     return "Good effort. Keep improving clarity, examples, and structure in your answers.";
@@ -231,14 +303,17 @@ app.post("/submit_answer", (req, res) => {
     const neu = Number(Math.max(0, 1 - Number(pos) - Number(neg))).toFixed(2);
 
     const score = relevanceScore(question, answer);
+    const sentiment = {
+      pos: Number(pos),
+      neg: Number(neg),
+      neu: Number(neu)
+    };
+    const metrics = computeAnswerMetrics(question, answer, sentiment, score);
 
     return res.json({
-      sentiment: {
-        pos: Number(pos),
-        neg: Number(neg),
-        neu: Number(neu)
-      },
-      score
+      sentiment,
+      score,
+      metrics
     });
   } catch (error) {
     console.error("submit_answer error:", error.message);
