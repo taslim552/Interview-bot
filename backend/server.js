@@ -21,8 +21,12 @@ const geminiApiKey = process.env.GEMINI_API_KEY;
 const geminiModelName = process.env.GEMINI_MODEL || "gemini-flash-latest";
 const mongoUri = process.env.MONGO_URI;
 
+function normalizeOrigin(origin) {
+  return String(origin || "").trim().replace(/\/$/, "");
+}
+
 const allowedOrigins = new Set([
-  frontendOrigin,
+  normalizeOrigin(frontendOrigin),
   "http://localhost:5173",
   "http://127.0.0.1:5173",
   "http://localhost:5174",
@@ -40,11 +44,14 @@ app.use(
   cors({
     origin(origin, callback) {
       // Allow non-browser tools (no Origin header) and known local dev frontend origins.
-      if (!origin || allowedOrigins.has(origin)) {
+      const normalizedOrigin = normalizeOrigin(origin);
+      const isVercelAppOrigin = /^https:\/\/[a-z0-9-]+\.vercel\.app$/i.test(normalizedOrigin);
+
+      if (!origin || allowedOrigins.has(normalizedOrigin) || isVercelAppOrigin) {
         callback(null, true);
         return;
       }
-      callback(new Error(`CORS blocked for origin: ${origin}`));
+      callback(new Error(`CORS blocked for origin: ${normalizedOrigin}`));
     }
   })
 );
