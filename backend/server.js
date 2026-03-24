@@ -250,8 +250,32 @@ function computeAnswerMetrics(question, answer, sentiment, relevance) {
 }
 
 async function generateFinalFeedback(qaPairs) {
+  const formatAsBullets = (rawText) => {
+    const cleanedLines = String(rawText || "")
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => line.replace(/^[-*•\u2022\d.)\s]+/, "").trim())
+      .filter(Boolean);
+
+    const normalizedLines = cleanedLines.length
+      ? cleanedLines
+      : String(rawText || "")
+          .split(/(?<=[.!?])\s+/)
+          .map((line) => line.trim())
+          .filter((line) => line.length > 10);
+
+    return normalizedLines.slice(0, 8).map((line) => `- ${line}`).join("\n");
+  };
+
   if (!geminiModel) {
-    return "Good effort. Keep improving clarity, examples, and structure in your answers.";
+    return [
+      "- Good effort and consistent interview flow.",
+      "- Keep answers concise and structured using situation-action-result format.",
+      "- Add measurable outcomes (numbers, percentages, impact).",
+      "- Mention technical trade-offs behind your decisions.",
+      "- Use specific project examples to strengthen credibility."
+    ].join("\n");
   }
 
   const interviewText = qaPairs
@@ -262,15 +286,22 @@ async function generateFinalFeedback(qaPairs) {
     "Evaluate this interview performance.",
     "Give concise feedback in 5-8 bullet points.",
     "Cover strengths, weaknesses, and specific improvements.",
+    "Return only bullet points, one per line, starting each line with '- '.",
     interviewText
   ].join("\n\n");
 
   try {
     const result = await geminiModel.generateContent(prompt);
-    return result.response.text() || "No feedback generated.";
+    const text = result.response.text() || "";
+    return formatAsBullets(text || "No feedback generated.");
   } catch (error) {
     console.error("Gemini feedback generation failed:", error.message);
-    return "Interview complete. Work on concise answers with specific project examples.";
+    return [
+      "- Interview complete with steady progress across questions.",
+      "- Improve clarity by keeping each answer focused.",
+      "- Add more concrete project examples and measurable impact.",
+      "- Explain technical reasoning and trade-off decisions more explicitly."
+    ].join("\n");
   }
 }
 

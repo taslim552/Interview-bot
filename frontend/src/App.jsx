@@ -350,15 +350,24 @@ function FeedbackView({ feedback, evaluations, qaPairs, onRestart }) {
   }, [evaluations]);
 
   const overall = Math.round(analytics.reduce((acc, item) => acc + item.value, 0) / analytics.length);
-  const feedbackLines = useMemo(
-    () =>
-      (feedback || "")
-        .split("\n")
-        .map((line) => line.trim())
-        .filter(Boolean)
-        .map((line) => line.replace(/^[-*]\s*/, "").replace(/\*\*/g, "").replace(/\*/g, "")),
-    [feedback]
-  );
+  const feedbackLines = useMemo(() => {
+    const cleaned = (feedback || "")
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => line.replace(/^[-*•\u2022\d.)\s]+/, "").trim())
+      .map((line) => line.replace(/\*\*(.*?)\*\*/g, "$1").replace(/\*(.*?)\*/g, "$1"))
+      .filter(Boolean);
+
+    if (cleaned.length > 1) {
+      return cleaned;
+    }
+
+    return (feedback || "")
+      .split(/(?<=[.!?])\s+/)
+      .map((line) => line.trim())
+      .filter((line) => line.length > 10);
+  }, [feedback]);
 
   return (
     <motion.section initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="glass-card mx-auto w-full max-w-4xl p-6 md:p-10">
